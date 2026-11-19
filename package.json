@@ -4,7 +4,8 @@
   "private": true,
   "description": "Supabase Edge Functions Backend with TypeScript",
   "scripts": {
-    "start": "supabase functions serve --no-verify-jwt",
+    "dev": "deno run --allow-all --node-modules-dir=none dev-server.ts",
+    "start": "deno run --allow-all --node-modules-dir=none dev-server.ts",
     "test": "vitest run",
     "functions:serve": "supabase functions serve --no-verify-jwt",
     "functions:new": "supabase functions new",
@@ -14,6 +15,7 @@
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
+    "deno": "^2.9.6",
     "supabase": "^3.2.0",
     "vitest": "^4.1.12"
   }

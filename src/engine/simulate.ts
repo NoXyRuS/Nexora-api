@@ -138,7 +138,8 @@ export function runSingleSimulation(
   const fijos0 = profile.costosFijosMensuales;
   const marketing0 = profile.marketingMensual;
   const deuda0 = profile.cuotasDeudaMensuales;
-  const tendenciaMensual = profile.derivatives.tendenciaMensualPct / 100;
+  // La tendencia informada corresponde a los últimos 3 meses, por lo que la tasa mensual base es / 3
+  const tendenciaMensual = (profile.derivatives.tendenciaMensualPct / 3) / 100;
 
   // Parámetros de decisión
   const priceChangePct = adjustedDecision?.priceChangePct ?? 0;

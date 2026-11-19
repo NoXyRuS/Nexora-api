@@ -306,6 +306,7 @@ export interface TreeNode {
   type: TreeNodeType;
   horizon?: 1 | 6 | 12 | 24;
   decisionId?: string;
+  decisionName?: string;
   stateSnapshot: SimulationMonthState;
   deltaVsParent?: NodeDelta;
   events: TriggeredEvent[];

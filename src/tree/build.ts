@@ -164,6 +164,7 @@ export function addDecisionBranch(
     parentId: parentNodeId,
     type: isChained ? "seguimiento" : "decision",
     decisionId: decision.id,
+    decisionName: decision.name,
     stateSnapshot: parentNode.stateSnapshot,
     events: [],
     metrics: parentNode.metrics,
@@ -234,6 +235,7 @@ export function addDecisionBranch(
         parentId: previousNodeId,
         type: "evento",
         decisionId: decision.id,
+        decisionName: decision.name,
         stateSnapshot: snapshotAtH,
         events: eventsInSpan,
         metrics: metricsAtH,
@@ -255,6 +257,7 @@ export function addDecisionBranch(
       type: "resultado",
       horizon: h,
       decisionId: decision.id,
+      decisionName: decision.name,
       stateSnapshot: snapshotAtH,
       deltaVsParent,
       events: eventsUntilH,
@@ -314,4 +317,189 @@ export function simulateCounterfactual(
     alternativeDecision,
     baseProfile
   );
+}
+
+export interface PathwayItem {
+  step: number;
+  decision: Decision;
+  profileBefore: NormalizedProfile;
+  profileAfter: NormalizedProfile;
+  simResult: any;
+}
+
+/**
+ * Construye el árbol de consecuencias encadenando estrictamente las decisiones
+ * elegidas por el usuario en cada ronda (Paso 1 -> Paso 2 -> Paso 3), evitando
+ * repeticiones innecesarias de la misma decisión.
+ */
+export function buildPathwayTree(
+  initialProfile: NormalizedProfile,
+  pathHistory: PathwayItem[],
+  currentPreview?: {
+    step: number;
+    decision: Decision;
+    simResult: any;
+  } | null,
+  isCompleted: boolean = false
+): ConsequenceTree {
+  const rootSnapshot = createInitialSnapshot(initialProfile);
+  const rootMetrics = extractMetrics(rootSnapshot, 0, 0);
+
+  const rootNode: TreeNode = {
+    id: "root",
+    parentId: null,
+    type: "raiz",
+    stateSnapshot: rootSnapshot,
+    events: [],
+    metrics: rootMetrics,
+    childrenIds: [],
+    depth: 0,
+  };
+
+  const nodes: Record<string, TreeNode> = {
+    root: rootNode,
+  };
+
+  let currentParentId = "root";
+  let prevMetrics = rootMetrics;
+  let prevSnapshot = rootSnapshot;
+
+  for (const item of pathHistory) {
+    const decNodeId = `dec_step_${item.step}`;
+    const resNodeId = `res_step_${item.step}`;
+
+    nodes[currentParentId] = {
+      ...nodes[currentParentId],
+      childrenIds: [...nodes[currentParentId].childrenIds, decNodeId],
+    };
+
+    const decNode: TreeNode = {
+      id: decNodeId,
+      parentId: currentParentId,
+      type: item.step === 1 ? "decision" : "seguimiento",
+      decisionId: item.decision.id,
+      decisionName: item.decision.name,
+      stateSnapshot: prevSnapshot,
+      events: [],
+      metrics: prevMetrics,
+      childrenIds: [resNodeId],
+      depth: item.step,
+    };
+    nodes[decNodeId] = decNode;
+
+    const months = item.simResult?.base?.months || [];
+    const cycleMonths = Math.max(1, Math.round(initialProfile.horizonte / 3));
+    const targetIdx = Math.min(cycleMonths - 1, months.length - 1);
+    const snapshotAtTarget = targetIdx >= 0 && months[targetIdx]
+      ? months[targetIdx]
+      : createInitialSnapshot(item.profileAfter);
+
+    const cumProfit = Number(
+      months
+        .slice(0, targetIdx + 1)
+        .reduce((sum: number, m: any) => sum + (m.beneficio || 0), 0)
+        .toFixed(2)
+    );
+    const negEvents = (snapshotAtTarget.activeEvents || []).length;
+    const metricsAtStep = extractMetrics(snapshotAtTarget, cumProfit, negEvents);
+
+    const deltaVsParent: NodeDelta = {
+      beneficioDeltaVsParent: metricsAtStep.beneficioAcumulado - prevMetrics.beneficioAcumulado,
+      cajaDeltaVsParent: metricsAtStep.caja - prevMetrics.caja,
+      clientesDeltaVsParent: metricsAtStep.clientes - prevMetrics.clientes,
+      satisfaccionDeltaVsParent: metricsAtStep.satisfaccion - prevMetrics.satisfaccion,
+    };
+
+    const resNode: TreeNode = {
+      id: resNodeId,
+      parentId: decNodeId,
+      type: "resultado",
+      horizon: (item.step === 1 ? 1 : item.step === 2 ? 6 : 12) as 1 | 6 | 12 | 24,
+      decisionId: item.decision.id,
+      decisionName: item.decision.name,
+      stateSnapshot: snapshotAtTarget,
+      deltaVsParent,
+      events: snapshotAtTarget.activeEvents || [],
+      metrics: metricsAtStep,
+      childrenIds: [],
+      depth: item.step,
+    };
+    nodes[resNodeId] = resNode;
+
+    currentParentId = resNodeId;
+    prevMetrics = metricsAtStep;
+    prevSnapshot = snapshotAtTarget;
+  }
+
+  if (!isCompleted && currentPreview && currentPreview.decision && currentPreview.step > pathHistory.length) {
+    const previewDecId = `dec_preview_${currentPreview.step}`;
+    const previewResId = `res_preview_${currentPreview.step}`;
+
+    nodes[currentParentId] = {
+      ...nodes[currentParentId],
+      childrenIds: [...nodes[currentParentId].childrenIds, previewDecId],
+    };
+
+    const previewDecNode: TreeNode = {
+      id: previewDecId,
+      parentId: currentParentId,
+      type: currentPreview.step === 1 ? "decision" : "seguimiento",
+      decisionId: currentPreview.decision.id,
+      decisionName: currentPreview.decision.name,
+      stateSnapshot: prevSnapshot,
+      events: [],
+      metrics: prevMetrics,
+      childrenIds: [previewResId],
+      depth: currentPreview.step,
+    };
+    nodes[previewDecId] = previewDecNode;
+
+    const previewMonths = currentPreview.simResult?.base?.months || [];
+    const cycleMonths = Math.max(1, Math.round(initialProfile.horizonte / 3));
+    const targetIdx = Math.min(cycleMonths - 1, previewMonths.length - 1);
+    const previewSnapshot = targetIdx >= 0 && previewMonths[targetIdx]
+      ? previewMonths[targetIdx]
+      : prevSnapshot;
+
+    const cumProfit = Number(
+      previewMonths
+        .slice(0, targetIdx + 1)
+        .reduce((sum: number, m: any) => sum + (m.beneficio || 0), 0)
+        .toFixed(2)
+    );
+    const negEvents = (previewSnapshot.activeEvents || []).length;
+    const previewMetrics = extractMetrics(previewSnapshot, cumProfit, negEvents);
+
+    const previewDelta: NodeDelta = {
+      beneficioDeltaVsParent: previewMetrics.beneficioAcumulado - prevMetrics.beneficioAcumulado,
+      cajaDeltaVsParent: previewMetrics.caja - prevMetrics.caja,
+      clientesDeltaVsParent: previewMetrics.clientes - prevMetrics.clientes,
+      satisfaccionDeltaVsParent: previewMetrics.satisfaccion - prevMetrics.satisfaccion,
+    };
+
+    const previewResNode: TreeNode = {
+      id: previewResId,
+      parentId: previewDecId,
+      type: "resultado",
+      horizon: (currentPreview.step === 1 ? 1 : currentPreview.step === 2 ? 6 : 12) as 1 | 6 | 12 | 24,
+      decisionId: currentPreview.decision.id,
+      decisionName: currentPreview.decision.name,
+      stateSnapshot: previewSnapshot,
+      deltaVsParent: previewDelta,
+      events: previewSnapshot.activeEvents || [],
+      metrics: previewMetrics,
+      childrenIds: [],
+      depth: currentPreview.step,
+    };
+    nodes[previewResId] = previewResNode;
+
+    currentParentId = previewResId;
+  }
+
+  return {
+    id: `tree_${Date.now()}`,
+    rootId: "root",
+    activeNodeId: currentParentId,
+    nodes,
+  };
 }

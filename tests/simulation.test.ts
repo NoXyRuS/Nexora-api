@@ -109,4 +109,23 @@ describe("Motor de Simulación Determinista", () => {
       res.base.summary.beneficioAcumulado
     );
   });
+
+  it("simula correctamente un negocio con 1 cliente diario (30/mes) reflejando el lift de campaña (+10%)", () => {
+    const lowVolumeForm: CaseFormInput = {
+      ...baseForm,
+      clientesPorMes: 30, // 1 cliente diario
+      capacidadMaximaMes: 50,
+      tendenciaUltimos3Meses: { tipo: "cayendo", porcentaje: 12 },
+    };
+    const pLow = validateCaseForm(lowVolumeForm).profile!;
+    const campaignDecision: Decision = {
+      ...sampleDecision,
+      demandLift: { start: 10, end: 10, curve: "linear", lagMonths: 0 },
+    };
+    const res = runSingleSimulation(pLow, campaignDecision, 3);
+    // En mes 1: con tasa mensual ajustada a 12/3 = 4% y lift +10%, atendidos supera la caída base (30 * 0.96 * 1.10 = ~31.68)
+    expect(res.months[0].atendidos).toBeGreaterThan(30);
+    // Comprobar que no es 0 ni se pierde por redondeo
+    expect(res.months[0].atendidos).toBeCloseTo(31.68, 1);
+  });
 });

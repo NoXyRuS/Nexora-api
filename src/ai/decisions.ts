@@ -299,9 +299,12 @@ export function processAiDecisionsResponse(
   profile: NormalizedProfile
 ): { decisions: Decision[]; usedFallback: boolean } {
   try {
-    const parsed = JSON.parse(rawJson);
+    const parsed = typeof rawJson === "string" ? JSON.parse(rawJson) : rawJson;
+    const candidateList = Array.isArray(parsed)
+      ? parsed
+      : (parsed?.decisions ?? parsed?.data ?? parsed?.decisiones ?? Object.values(parsed ?? {}).find(Array.isArray) ?? []);
     const { validDecisions, requiredSupplement } = validateAndSanitizeDecisions(
-      parsed,
+      candidateList,
       profile
     );
     return {

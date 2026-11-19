@@ -197,9 +197,12 @@ export function addDecisionBranch(
     const negativeEvents = eventsUntilH.filter((e) => e.severity === "alta").length;
 
     // Calcular beneficio acumulado hasta el mes h
-    const cumProfit = simulation.months
-      .slice(0, monthIndex + 1)
-      .reduce((sum, m) => sum + m.beneficio, 0);
+    const cumProfit = Number(
+      simulation.months
+        .slice(0, monthIndex + 1)
+        .reduce((sum, m) => sum + m.beneficio, 0)
+        .toFixed(2)
+    );
 
     const metricsAtH = extractMetrics(snapshotAtH, cumProfit, negativeEvents);
 

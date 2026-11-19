@@ -5,6 +5,7 @@
   "description": "Supabase Edge Functions Backend with TypeScript",
   "scripts": {
     "start": "supabase functions serve --no-verify-jwt",
+    "test": "vitest run",
     "functions:serve": "supabase functions serve --no-verify-jwt",
     "functions:new": "supabase functions new",
     "supabase:start": "supabase start",
@@ -12,6 +13,8 @@
     "supabase:status": "supabase status"
   },
   "devDependencies": {
-    "supabase": "^3.2.0"
+    "@types/node": "^26.6.6",
+    "supabase": "^3.2.0",
+    "vitest": "^4.1.12"
   }
 }

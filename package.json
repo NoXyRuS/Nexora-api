@@ -1,0 +1,17 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Supabase Edge Functions Backend with TypeScript",
+  "scripts": {
+    "start": "supabase functions serve --no-verify-jwt",
+    "functions:serve": "supabase functions serve --no-verify-jwt",
+    "functions:new": "supabase functions new",
+    "supabase:start": "supabase start",
+    "supabase:stop": "supabase stop",
+    "supabase:status": "supabase status"
+  },
+  "devDependencies": {
+    "supabase": "^3.2.0"
+  }
+}
